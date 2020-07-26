@@ -93,14 +93,14 @@ def plot_osm_map(track, output_file="map.html"):
     )
     for _, row in track.iterrows():
         tooltip = f'{row["speed_kph"]:0.1f}kmh {row["heart_rate"]}bpm {row["altitude"]:0.1f}m'
-        marker = folium.CircleMarker(
+        marker = folium.Circle(
             location=(row["position_lat"], row["position_long"]),
-            radius=row["speed_kph"] ** 2 / 10,
+            radius=row["speed_kph"] ** 2 / 5,
             tooltip=tooltip,
             fill_color=matplotlib.colors.to_hex(mapper.to_rgba(row["speed_kph"])),
             fill=True,
-            fill_opacity=1,
-            weight=0.5,
+            fill_opacity=0.5,
+            weight=0,
         )
         marker.add_to(map_)
     folium.PolyLine(zip(track["position_lat"], track["position_long"])).add_to(map_)
