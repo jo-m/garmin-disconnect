@@ -147,6 +147,8 @@ def to_python(obj, simplify=True, path=None):
         return obj
     if isinstance(obj, datetime.datetime):
         return obj
+    if isinstance(obj, datetime.time):
+        return obj
     if isinstance(obj, dict):
         return {k: to_python(v, simplify, path + [k]) for k, v in obj.items()}
 

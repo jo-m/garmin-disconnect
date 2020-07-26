@@ -2,6 +2,7 @@
 
 from db import open_db, create_update_views
 import sqlite3
+import matplotlib.pyplot as plt
 import pandas as pd
 import json
 
@@ -19,6 +20,10 @@ def _get_row(conn: sqlite3.Connection, file_id: int, frame_type: str) -> dict:
     rows = list(cur.fetchall())
     assert len(rows) == 1
     return json.loads(rows[0][0])
+
+
+def to_deg(col: pd.Series):
+    return col.astype(float) * (180 / (2 ** 31))
 
 
 def activity(conn: sqlite3.Connection, file_id: int):
@@ -40,7 +45,13 @@ def activity(conn: sqlite3.Connection, file_id: int):
         data["timestamp"] = timestamp
         records.append(data)
     records = pd.DataFrame(records)
+    records["position_long"] = to_deg(records["position_long"])
+    records["position_lat"] = to_deg(records["position_lat"])
     print(records)
+    records.plot.scatter("position_long", "position_lat")
+    records.plot.scatter("distance", "altitude")
+    records.plot.scatter("distance", "speed")
+    records.plot.scatter("distance", "heart_rate")
 
     cur.close()
     laps = []
@@ -52,9 +63,15 @@ def activity(conn: sqlite3.Connection, file_id: int):
         data["end_time"] = timestamp
         laps.append(data)
     laps = pd.DataFrame(laps)
+    laps["start_position_lat"] = to_deg(laps["start_position_lat"])
+    laps["start_position_long"] = to_deg(laps["start_position_long"])
+    laps["end_position_lat"] = to_deg(laps["end_position_lat"])
+    laps["end_position_long"] = to_deg(laps["end_position_long"])
     print(laps)
+
+    plt.show()
 
 
 create_update_views()
 devices(open_db())
-activity(open_db(), file_id=98)
+activity(open_db(), file_id=53)
