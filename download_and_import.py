@@ -4,46 +4,16 @@ import hashlib
 import os
 import sqlite3
 import typing
-import pprint
 import json
 import getpass
 import datetime
 from pathlib import Path
 from subprocess import Popen
 import fitdecode
+from db import open_db, DB_FILE
 
-DB_FILE = Path(__file__).parent.resolve() / "data.db"
 WATCH_ROOT = Path(f"/media/{getpass.getuser()}/GARMIN")
 DOWNLOAD_ROOT = Path(__file__).parent.resolve() / "files"
-
-SCHEMA_SCRIPT = """
-PRAGMA foreign_keys = ON;
-
-CREATE TABLE IF NOT EXISTS files (
-    id          INTEGER PRIMARY KEY,
-    path        TEXT NOT NULL,
-    downloaded  TIMESTAMP NOT NULL,
-    created     TIMESTAMP NOT NULL,
-    modified    TIMESTAMP NOT NULL,
-    hash_sha256 TEXT NOT NULL,
-    data        BLOB,
-    imported    BOOL DEFAULT FALSE NOT NULL,
-    UNIQUE(path, hash_sha256)
-);
-CREATE INDEX IF NOT EXISTS files_path ON files (path);
-CREATE INDEX IF NOT EXISTS files_imported ON files (imported);
-
-CREATE TABLE IF NOT EXISTS frames (
-    id          INTEGER PRIMARY KEY,
-    file_id     INTEGER NOT NULL,
-    type        TEXT NOT NULL,
-    timestamp   TIMESTAMP,
-    data_json   TEXT,
-    FOREIGN KEY(file_id) REFERENCES files(id)
-);
-CREATE INDEX IF NOT EXISTS frames_type ON frames (type);
-CREATE INDEX IF NOT EXISTS frames_timestamp ON frames (timestamp);
-"""
 
 
 class File(typing.NamedTuple):
@@ -122,12 +92,6 @@ class File(typing.NamedTuple):
     imported: bool
 
 
-def open_db():
-    conn = sqlite3.connect(str(DB_FILE), isolation_level=None)
-    conn.executescript(SCHEMA_SCRIPT)
-    return conn
-
-
 def walk_files():
     for dirpath, _, fnames in os.walk(DOWNLOAD_ROOT):
         dirpath = Path(dirpath)
@@ -158,7 +122,6 @@ def download():
     cmd = ["rsync", "--verbose", "--checksum", "--archive", str(from_) + "/", str(DOWNLOAD_ROOT)]
     print("Downloading files via rsync:")
     Popen(cmd).communicate()
-    update_files_in_db()
     print("Downloading finished.")
 
 
@@ -238,10 +201,10 @@ def parse_activity(file: File, conn: sqlite3.Connection):
             if frame is None:
                 continue
             if "timestamp" in frame:
-                ts = frame["timestamp"].isoformat()
+                timestamp = frame["timestamp"].isoformat()
                 del frame["timestamp"]
             else:
-                ts = None
+                timestamp = None
             type_ = frame["$type"]
             del frame["$type"]
             data = json.dumps(frame, default=json_ser_default)
@@ -249,7 +212,7 @@ def parse_activity(file: File, conn: sqlite3.Connection):
                 "INSERT INTO frames "
                 "(file_id, type, timestamp, data_json) "
                 "VALUES (?, ?, ?, ?)",
-                (file.id, type_, ts, data),
+                (file.id, type_, timestamp, data),
             )
             count += 1
     return count
@@ -273,4 +236,5 @@ if __name__ == "__main__":
     print(f"Database: {DB_FILE}")
     print(f"Download folder: {DOWNLOAD_ROOT}")
     download()
+    update_files_in_db()
     import_files()
