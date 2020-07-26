@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+import re
 
 DB_FILE = Path(__file__).parent.resolve() / "data.db"
 
@@ -35,7 +36,60 @@ CREATE INDEX IF NOT EXISTS frames_timestamp ON frames (timestamp);
 """
 
 
+VIEWS_SCRIPT = """
+CREATE VIEW fit_files AS SELECT id, path, hash_sha256 FROM files WHERE path LIKE '%.FIT';
+CREATE VIEW activity_files AS SELECT id, path, hash_sha256 FROM files WHERE path LIKE 'ACTIVITY/%.FIT';
+CREATE VIEW monitor_files AS SELECT id, path, hash_sha256 FROM files WHERE path LIKE 'MONITOR/%.FIT';
+
+CREATE VIEW devices AS
+    SELECT
+        frames.file_id,
+        frames.data_json,
+        (
+            SELECT
+                json_group_array(json(device_frames.data_json))
+            FROM
+                frames as device_frames
+            WHERE
+                device_frames.file_id = frames.file_id
+            AND
+                device_frames.type IN ('file_id', 'file_creator', 'software', 'file_capabilities', 'mesg_capabilities', 'field_capabilities')
+        ) AS all_data
+    FROM frames
+    WHERE
+        json_extract(frames.data_json, '$.type') = 'device'
+    AND frames.type = 'file_id';
+
+CREATE VIEW activities AS
+    SELECT
+        frames.file_id,
+        frames.data_json,
+        (
+            SELECT
+                json_group_array(json(activity_frames.data_json))
+            FROM
+                frames as activity_frames
+            WHERE
+                activity_frames.file_id = frames.file_id
+            AND
+                activity_frames.type IN ('file_id', 'file_creator', 'sport', 'user_profile')
+        ) AS all_data
+    FROM frames
+    WHERE
+        frames.type = 'file_id'
+    AND
+        json_extract(frames.data_json, '$.type') = 'activity';
+"""
+
+
 def open_db():
     conn = sqlite3.connect(str(DB_FILE), isolation_level=None)
     conn.executescript(SCHEMA_SCRIPT)
     return conn
+
+
+def create_update_views():
+    conn = open_db()
+    for viewname in re.findall(r"CREATE\s+VIEW\s+([a-zA-Z_]+)", VIEWS_SCRIPT):
+        conn.execute(f"DROP VIEW IF EXISTS {viewname}")
+    conn.executescript(VIEWS_SCRIPT)

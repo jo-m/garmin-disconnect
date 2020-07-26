@@ -10,7 +10,7 @@ import datetime
 from pathlib import Path
 from subprocess import Popen
 import fitdecode
-from db import open_db, DB_FILE
+from db import open_db, DB_FILE, create_update_views
 
 WATCH_ROOT = Path(f"/media/{getpass.getuser()}/GARMIN")
 DOWNLOAD_ROOT = Path(__file__).parent.resolve() / "files"
@@ -238,3 +238,4 @@ if __name__ == "__main__":
     download()
     update_files_in_db()
     import_files()
+    create_update_views()
