@@ -1,8 +1,19 @@
-what should it do
+# View Garmin Device Activity
 
-download and sync heart rate, steps
-download and sync activities
+Tool to download and view data from Garmin GPS watches.
 
-show activities on map
+Data can be downloaded and is saved locally in an Sqlite database.
 
-https://www.bunniestudios.com/blog/?p=5863
+Visualization is WIP.
+
+Initially inspired by: <https://www.bunniestudios.com/blog/?p=5863>
+
+## Usage
+
+```bash
+# download all data
+./download_and_import.py
+
+# create a map of an activity file
+./query.py
+```
