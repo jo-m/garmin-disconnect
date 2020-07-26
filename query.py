@@ -5,6 +5,9 @@ import sqlite3
 import matplotlib.pyplot as plt
 import pandas as pd
 import json
+import matplotlib
+import matplotlib.cm as cm
+import folium
 
 
 def devices(conn: sqlite3.Connection):
@@ -27,10 +30,6 @@ def to_deg(col: pd.Series):
 
 
 def activity(conn: sqlite3.Connection, file_id: int):
-    # metadata
-    # records
-    # laps
-    # starts/stops
     meta = _get_row(conn, file_id, "file_id")
     settings = _get_row(conn, file_id, "device_settings")
     sport = _get_row(conn, file_id, "sport")
@@ -47,11 +46,7 @@ def activity(conn: sqlite3.Connection, file_id: int):
     records = pd.DataFrame(records)
     records["position_long"] = to_deg(records["position_long"])
     records["position_lat"] = to_deg(records["position_lat"])
-    print(records)
-    records.plot.scatter("position_long", "position_lat")
-    records.plot.scatter("distance", "altitude")
-    records.plot.scatter("distance", "speed")
-    records.plot.scatter("distance", "heart_rate")
+    records["speed_kph"] = records["speed"] * 3.6
 
     cur.close()
     laps = []
@@ -67,11 +62,67 @@ def activity(conn: sqlite3.Connection, file_id: int):
     laps["start_position_long"] = to_deg(laps["start_position_long"])
     laps["end_position_lat"] = to_deg(laps["end_position_lat"])
     laps["end_position_long"] = to_deg(laps["end_position_long"])
-    print(laps)
 
+    cur.close()
+    cur = conn.execute(
+        "SELECT timestamp, data_json "
+        "FROM frames "
+        "WHERE"
+        "   file_id = ?"
+        "AND type = 'event' "
+        "AND json_extract(data_json, '$.event') = 'timer'",
+        (file_id,),
+    )
+    startstop = []
+    for timestamp, data in cur.fetchall():
+        data = json.loads(data)
+        data["timestamp"] = timestamp
+        startstop.append(data)
+    startstop = pd.DataFrame(startstop)
+
+    return meta, settings, sport, user, records, laps, startstop
+
+
+def plot_osm_map(track, output_file="map.html"):
+    norm = matplotlib.colors.Normalize(
+        vmin=min(track["speed_kph"]), vmax=max(track["speed_kph"]), clip=True
+    )
+    mapper = cm.ScalarMappable(norm=norm, cmap=cm.plasma)
+    map_ = folium.Map(
+        location=[track["position_lat"][0], track["position_long"][0]], zoom_start=15
+    )
+    for _, row in track.iterrows():
+        tooltip = f'{row["speed_kph"]:0.1f}kmh {row["heart_rate"]}bpm {row["altitude"]:0.1f}m'
+        marker = folium.CircleMarker(
+            location=(row["position_lat"], row["position_long"]),
+            radius=row["speed_kph"] ** 2 / 10,
+            tooltip=tooltip,
+            fill_color=matplotlib.colors.to_hex(mapper.to_rgba(row["speed_kph"])),
+            fill=True,
+            fill_opacity=1,
+            weight=0.5,
+        )
+        marker.add_to(map_)
+    folium.PolyLine(zip(track["position_lat"], track["position_long"])).add_to(map_)
+
+    map_.save(output_file)
+
+
+def main():
+    create_update_views()
+    _, _, _, _, records, laps, startstop = activity(open_db(), file_id=53)
+
+    print(records)
+    print(laps)
+    print(startstop)
+
+    plot_osm_map(records)
+
+    records.plot.scatter("distance", "altitude")
+    records.plot.scatter("distance", "speed")
+    records.plot.scatter("distance", "heart_rate")
     plt.show()
 
 
-create_update_views()
-devices(open_db())
-activity(open_db(), file_id=53)
+if __name__ == "__main__":
+    main()
