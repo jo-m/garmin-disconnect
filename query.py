@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+import sys
 
 from db import open_db, create_update_views
 import sqlite3
 import matplotlib.pyplot as plt
 import pandas as pd
 import json
+from collections import ChainMap
 import matplotlib
 import matplotlib.cm as cm
 import folium
@@ -108,20 +110,49 @@ def plot_osm_map(track, output_file="map.html"):
     map_.save(output_file)
 
 
-def main():
+def show_activity(file_id: int):
     create_update_views()
-    _, _, _, _, records, laps, startstop = activity(open_db(), file_id=53)
+    _, _, _, _, records, laps, startstop = activity(open_db(), file_id)
 
     print(records)
     print(laps)
     print(startstop)
 
-    plot_osm_map(records)
+    plot_osm_map(records, output_file="map.html")
+    print("Map written to map.html")
 
     records.plot.scatter("distance", "altitude")
     records.plot.scatter("distance", "speed")
     records.plot.scatter("distance", "heart_rate")
     plt.show()
+
+
+def activities(conn: sqlite3.Connection):
+    query = "SELECT * FROM activities"
+    for file_id, _, all_data in conn.execute(query):
+        all_data = dict(ChainMap(*json.loads(all_data)))
+        all_data["file_id"] = file_id
+        yield all_data
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: query.py <action>")
+        print("Usage:     where action is 'list', or an activity id")
+        sys.exit(1)
+
+    create_update_views()
+
+    if sys.argv[1] == "list":
+        for a in activities(open_db()):
+            print(
+                f"#{a['file_id']:03d} {a['name']:10s} Time: {a['time_created']}, "
+                f"device: {a['manufacturer']} {a['serial_number']}, "
+                f"sport: {a['sport']}"
+            )
+    else:
+        file_id = int(sys.argv[1])
+        show_activity(file_id)
 
 
 if __name__ == "__main__":

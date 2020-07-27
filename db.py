@@ -9,14 +9,15 @@ SCHEMA_SCRIPT = """
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS files (
-    id          INTEGER PRIMARY KEY,
-    path        TEXT NOT NULL,
-    downloaded  TIMESTAMP NOT NULL,
-    created     TIMESTAMP NOT NULL,
-    modified    TIMESTAMP NOT NULL,
-    hash_sha256 TEXT NOT NULL,
-    data        BLOB,
-    imported    BOOL DEFAULT FALSE NOT NULL
+    id            INTEGER PRIMARY KEY,
+    path          TEXT NOT NULL,
+    downloaded    TIMESTAMP NOT NULL,
+    created       TIMESTAMP NOT NULL,
+    modified      TIMESTAMP NOT NULL,
+    hash_sha256   TEXT NOT NULL,
+    data          BLOB,
+    download_seq  INTEGER,
+    imported      BOOL DEFAULT FALSE NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS files_unique ON files (path, hash_sha256);
 CREATE INDEX IF NOT EXISTS files_path ON files (path);
@@ -78,7 +79,9 @@ CREATE VIEW activities AS
     WHERE
         frames.type = 'file_id'
     AND
-        json_extract(frames.data_json, '$.type') = 'activity';
+        json_extract(frames.data_json, '$.type') = 'activity'
+    ORDER BY
+        DATETIME(json_extract(frames.data_json, '$.time_created')) DESC;
 """
 
 

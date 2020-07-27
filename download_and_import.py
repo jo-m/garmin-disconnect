@@ -61,11 +61,11 @@ class File(typing.NamedTuple):
         )
         return rows.fetchone()[0] > 0
 
-    def insert(self, conn: sqlite3.Connection):
+    def insert(self, conn: sqlite3.Connection, download_seq: int):
         conn.execute(
             "INSERT INTO files "
-            "(path, downloaded, created, modified, hash_sha256, data, imported) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "(path, downloaded, created, modified, hash_sha256, data, download_seq, imported) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 self.path,
                 self.downloaded.isoformat(),
@@ -73,6 +73,7 @@ class File(typing.NamedTuple):
                 self.modified.isoformat(),
                 self.hash_sha256,
                 sqlite3.Binary(self.data),
+                download_seq,
                 False,
             ),
         )
@@ -103,10 +104,13 @@ def walk_files():
 def update_files_in_db():
     conn = open_db()
     conn.execute("BEGIN")
+    max_seq = conn.execute("SELECT MAX(download_seq) FROM files").fetchone()[0]
+    if max_seq is None:
+        max_seq = 0
     for file in walk_files():
         if not file.exists_in_db(conn):
             print(f"Found new file {file.path} (modified {file.modified})")
-            file.insert(conn)
+            file.insert(conn, max_seq + 1)
     conn.execute("COMMIT")
 
 
