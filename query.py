@@ -87,6 +87,18 @@ def activity(conn: sqlite3.Connection, file_id: int):
     return meta, settings, sport, user, records, laps, startstop
 
 
+def iter_with_prev(iterable):
+    it = iter(iterable)
+    prev = next(it)
+    try:
+        while True:
+            new = next(it)
+            yield prev, new
+            prev = new
+    except StopIteration:
+        pass
+
+
 def plot_osm_map(track, output_file="map.html"):
     norm = matplotlib.colors.Normalize(
         vmin=min(track["speed_kph"]), vmax=max(track["speed_kph"]), clip=True
@@ -95,19 +107,14 @@ def plot_osm_map(track, output_file="map.html"):
     map_ = folium.Map(
         location=[track["position_lat"][0], track["position_long"][0]], zoom_start=15
     )
-    for _, row in track.iterrows():
+    for (_, prev), (_, row) in iter_with_prev(track.iterrows()):
         tooltip = f'{row["speed_kph"]:0.1f}kmh {row["heart_rate"]}bpm {row["altitude"]:0.1f}m'
-        marker = folium.Circle(
-            location=(row["position_lat"], row["position_long"]),
-            radius=row["speed_kph"] ** 2 / 5,
-            tooltip=tooltip,
-            fill_color=matplotlib.colors.to_hex(mapper.to_rgba(row["speed_kph"])),
-            fill=True,
-            fill_opacity=0.5,
-            weight=0,
-        )
-        marker.add_to(map_)
-    folium.PolyLine(zip(track["position_lat"], track["position_long"])).add_to(map_)
+        color = matplotlib.colors.to_hex(mapper.to_rgba(row["speed_kph"]))
+        from_ = (prev["position_lat"], prev["position_long"])
+        to = (row["position_lat"], row["position_long"])
+        folium.PolyLine(
+            locations=(from_, to), tooltip=tooltip, color=color, opacity=0.8, weight=5,
+        ).add_to(map_)
 
     map_.save(output_file)
 
@@ -115,6 +122,8 @@ def plot_osm_map(track, output_file="map.html"):
 def show_activity(file_id: int):
     create_update_views()
     _, _, _, _, records, laps, startstop = activity(open_db(), file_id)
+    # drop records without GPS
+    records = records.dropna().reset_index()
 
     print(records)
     print(laps)
