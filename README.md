@@ -38,9 +38,20 @@ Currently, `query.py` can list activities, and display single activities at a ti
 Export to a map HTML file which can be viewed in a browser is included.
 
 The plan is to add a JSON web API to query.py, so the data can be pulled
-from the DB dynamically and dispplayed in a web UI.
+from the DB dynamically and displayed in a web UI.
 
-## Usage
+## Installation and Usage
+
+Currently needs rsync for "historical reasons", this will be removed in the future.
+
+```bash
+# install, REQUIRES PYTHON 3.8
+git clone git@github.com:jo-m/garmin-disconnect.git
+cd garmin-disconnect
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
 ```bash
 # download all data
@@ -50,6 +61,7 @@ from the DB dynamically and dispplayed in a web UI.
 ./query.py list
 
 # show an activity, write map to map.html
+# use the id from the leftmost column of `./query.py list` output here
 ./query.py 56
 ```
 
