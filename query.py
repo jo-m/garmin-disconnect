@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-import sys
 
-from db import open_db, create_update_views
-import sqlite3
-import matplotlib.pyplot as plt
-import pandas as pd
 import json
+import sqlite3
+import sys
 from collections import ChainMap
+
+import folium
 import matplotlib
 import matplotlib.cm as cm
-import folium
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from db import open_db, create_update_views
 
 
 def devices(conn: sqlite3.Connection):

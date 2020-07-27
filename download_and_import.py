@@ -1,37 +1,36 @@
 #!/usr/bin/env python3
 
+import datetime
+import getpass
 import hashlib
+import json
 import os
 import sqlite3
+import sys
 import typing
-import json
-import getpass
-import datetime
 from pathlib import Path
-from subprocess import Popen
-import fitdecode
-from db import open_db, DB_FILE, create_update_views
 
-WATCH_ROOT = Path(f"/media/{getpass.getuser()}/GARMIN")
-DOWNLOAD_ROOT = Path(__file__).parent.resolve() / "files"
+import fitdecode
+
+from db import open_db, DB_FILE, create_update_views
 
 
 class File(typing.NamedTuple):
     @classmethod
-    def from_path(cls, path_abs: Path):
-        path = str(path_abs.relative_to(DOWNLOAD_ROOT))
-        st = os.stat(str(path_abs))
+    def from_path(cls, path: Path, device_root: Path):
+        assert not path.is_absolute()
+        abs_path = device_root / path
+        st = os.stat(str(abs_path))
         downloaded = datetime.datetime.now().astimezone()
         created = datetime.datetime.fromtimestamp(st.st_ctime).astimezone()
         modified = datetime.datetime.fromtimestamp(st.st_mtime).astimezone()
-        with open(str(path_abs), "rb") as f:
+        with open(str(abs_path), "rb") as f:
             data = f.read()
             hash_sha256 = hashlib.sha256(data).hexdigest()
 
         return cls(
             id=None,
             path=path,
-            path_abs=path_abs,
             downloaded=downloaded,
             created=created,
             modified=modified,
@@ -44,8 +43,7 @@ class File(typing.NamedTuple):
     def from_db(cls, row: tuple):
         return cls(
             id=row[0],
-            path=row[1],
-            path_abs=DOWNLOAD_ROOT / Path(row[1]),
+            path=Path(row[1]),
             downloaded=datetime.datetime.fromisoformat(row[2]),
             created=datetime.datetime.fromisoformat(row[3]),
             modified=datetime.datetime.fromisoformat(row[4]),
@@ -57,7 +55,7 @@ class File(typing.NamedTuple):
     def exists_in_db(self, conn: sqlite3.Connection):
         rows = conn.execute(
             "SELECT COUNT(*) FROM files " "WHERE path = ? " "AND hash_sha256 = ?",
-            (self.path, self.hash_sha256),
+            (str(self.path), self.hash_sha256),
         )
         return rows.fetchone()[0] > 0
 
@@ -67,7 +65,7 @@ class File(typing.NamedTuple):
             "(path, downloaded, created, modified, hash_sha256, data, download_seq, imported) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                self.path,
+                str(self.path),
                 self.downloaded.isoformat(),
                 self.created.isoformat(),
                 self.modified.isoformat(),
@@ -83,8 +81,7 @@ class File(typing.NamedTuple):
         conn.execute("UPDATE files " "SET imported = TRUE " "WHERE id = ?", (self.id,))
 
     id: int
-    path: str
-    path_abs: Path
+    path: Path
     downloaded: datetime.datetime
     created: datetime.datetime
     modified: datetime.datetime
@@ -93,40 +90,25 @@ class File(typing.NamedTuple):
     imported: bool
 
 
-def walk_files():
-    for dirpath, _, fnames in os.walk(DOWNLOAD_ROOT):
+def walk_files(device_root: Path):
+    for dirpath, _, fnames in os.walk(str(device_root)):
         dirpath = Path(dirpath)
         for fname in fnames:
-            fname = dirpath / Path(fname)
-            yield File.from_path(fname)
+            fname = (dirpath / Path(fname)).relative_to(device_root)
+            yield File.from_path(fname, device_root)
 
 
-def update_files_in_db():
+def download_files(device_root: Path):
     conn = open_db()
     conn.execute("BEGIN")
     max_seq = conn.execute("SELECT MAX(download_seq) FROM files").fetchone()[0]
     if max_seq is None:
         max_seq = 0
-    for file in walk_files():
+    for file in walk_files(device_root):
         if not file.exists_in_db(conn):
             print(f"Found new file {file.path} (modified {file.modified})")
             file.insert(conn, max_seq + 1)
     conn.execute("COMMIT")
-
-
-def download():
-    """
-    Download current files, and insert them into the database.
-    """
-    from_ = WATCH_ROOT.resolve() / "GARMIN"
-    if not from_.exists():
-        print("Skipping download, device not available")
-        return
-
-    cmd = ["rsync", "--verbose", "--checksum", "--archive", str(from_) + "/", str(DOWNLOAD_ROOT)]
-    print("Downloading files via rsync:")
-    Popen(cmd).communicate()
-    print("Downloading finished.")
 
 
 def to_python(obj, simplify=True, path=None):
@@ -196,7 +178,7 @@ def json_ser_default(obj):
     raise TypeError(obj)
 
 
-def parse_activity(file: File, conn: sqlite3.Connection):
+def parse_import_activity(file: File, conn: sqlite3.Connection):
     count = 0
     with fitdecode.FitReader(file.data) as fit:
         for frame in fit:
@@ -231,17 +213,39 @@ def import_files():
     for row in rows:
         file = File.from_db(row)
         print("Parsing", file.path)
-        count = parse_activity(file, conn)
+        count = parse_import_activity(file, conn)
         print(f"Imported {count} frames")
         file.mark_imported(conn)
     conn.execute("COMMIT")
 
 
-if __name__ == "__main__":
-    print(f"Device: {WATCH_ROOT}")
+def get_device_root():
+    device_root = Path(f"/media/{getpass.getuser()}/GARMIN")
+    if len(sys.argv) > 1:
+        if sys.argv[1] in ["-h", "--help"]:
+            print(f"usage: download_and_import.py [device_root={device_root}]")
+            sys.exit(0)
+        else:
+            device_root = Path(sys.argv[1])
+
+    device_file = device_root / "GARMIN" / "DEVICE.FIT"
+    if not device_file.exists():
+        print(f"No such file: {device_file}, is the device root set correctly?")
+        sys.exit(1)
+
+    return device_root
+
+
+def main():
+    device_root = get_device_root()
+
+    print(f"Device root: {device_root}")
     print(f"Database: {DB_FILE}")
-    print(f"Download folder: {DOWNLOAD_ROOT}")
-    download()
-    update_files_in_db()
+
+    download_files(device_root / "GARMIN")
     import_files()
     create_update_views()
+
+
+if __name__ == "__main__":
+    main()
