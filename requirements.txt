@@ -9,7 +9,7 @@ Jinja2==2.11.3
 kiwisolver==1.2.0
 MarkupSafe==1.1.1
 matplotlib==3.3.0
-numpy==1.19.1
+numpy==1.22.0
 pandas==1.0.5
 Pillow==8.3.2
 pyparsing==2.4.7
