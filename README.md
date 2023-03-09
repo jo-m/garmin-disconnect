@@ -1,6 +1,6 @@
 # Garmin Disconnect - Open source alternative to Garmin Connect
 
-**WIP**
+**NO LONGER UPDATED**
 
 This allows you to download, store and display data from Garmin watches.
 No internet connection required (except for displaying maps from OSM).
