@@ -1,12 +1,10 @@
-# READ THIS
+# READ THIS FIRST
 
 For some reasons, this is one of the first things that pop up when you enter "Garmin Open Source" into Google.
 However, I hacked this together in a weekend (when Garmin Connect was down...) and then quickly abandoned it (the fate of so many hobby projects).
 It is not really in any usable state. There are much better alternatives.
 
 # Garmin Disconnect - Open source alternative to Garmin Connect
-
-**NO LONGER UPDATED**
 
 This allows you to download, store and display data from Garmin watches.
 No internet connection required (except for displaying maps from OSM).
