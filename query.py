@@ -50,8 +50,11 @@ def activity(conn: sqlite3.Connection, file_id: int):
     records = pd.DataFrame(records)
     records["position_long"] = to_deg(records["position_long"])
     records["position_lat"] = to_deg(records["position_lat"])
+    if 'enhanced_speed' in records:
+        records["speed"] = records["enhanced_speed"]
     records["speed_kph"] = records["speed"] * 3.6
-
+    if 'enhanced_altitude' in records:
+        records['altitude'] = records['enhanced_altitude']
     cur.close()
     laps = []
     cur = conn.execute(
@@ -156,6 +159,8 @@ def main():
 
     if sys.argv[1] == "list":
         for a in activities(open_db()):
+            if 'name' not in a:
+                continue
             print(
                 f"#{a['file_id']:03d} {a['name']:10s} Time: {a['time_created']}, "
                 f"device: {a['manufacturer']} {a['serial_number']}, "
