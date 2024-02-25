@@ -6,6 +6,8 @@ It is not really in any usable state. There are much better alternatives.
 
 # Garmin Disconnect - Open source alternative to Garmin Connect
 
+<img src="motivation.png" width="200">
+
 This allows you to download, store and display data from Garmin watches.
 No internet connection required (except for displaying maps from OSM).
 
